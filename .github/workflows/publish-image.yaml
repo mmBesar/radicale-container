@@ -1,21 +1,72 @@
-name: Conatainer Image CI
+name: Container Image CI
 
 on:
   push:
   schedule:
-    - cron: "0 0 * * 5"
+    - cron: "0 0 * * 5"  # Weekly on Friday
+    - cron: "0 */6 * * *"  # Every 6 hours to check upstream
+  workflow_dispatch:  # Allow manual triggering
+
+env:
+  UPSTREAM_REPO: Kozea/Radicale
 
 jobs:
+  check-upstream:
+    name: Check Upstream Changes
+    runs-on: ubuntu-latest
+    outputs:
+      should-build: ${{ steps.check.outputs.should-build }}
+      upstream-sha: ${{ steps.check.outputs.upstream-sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for upstream changes
+        id: check
+        run: |
+          # Get the latest commit SHA from upstream
+          UPSTREAM_SHA=$(curl -s https://api.github.com/repos/${{ env.UPSTREAM_REPO }}/commits/master | jq -r '.sha')
+          echo "upstream-sha=$UPSTREAM_SHA" >> $GITHUB_OUTPUT
+          
+          # Check if we have a record of the last built commit
+          LAST_BUILT_SHA=""
+          if [ -f .last-built-sha ]; then
+            LAST_BUILT_SHA=$(cat .last-built-sha)
+          fi
+          
+          echo "Last built SHA: $LAST_BUILT_SHA"
+          echo "Upstream SHA: $UPSTREAM_SHA"
+          
+          # Always build on manual trigger, push, or weekly schedule
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event.schedule }}" = "0 0 * * 5" ]; then
+            echo "should-build=true" >> $GITHUB_OUTPUT
+            echo "Build triggered by: ${{ github.event_name }}"
+          # Check if upstream has new commits for scheduled runs
+          elif [ "$UPSTREAM_SHA" != "$LAST_BUILT_SHA" ]; then
+            echo "New upstream changes detected!"
+            echo "should-build=true" >> $GITHUB_OUTPUT
+          else
+            echo "No new upstream changes"
+            echo "should-build=false" >> $GITHUB_OUTPUT
+          fi
 
   build_and_publish:
-    name: build_and_publish
+    name: Build and Publish
+    needs: check-upstream
+    if: needs.check-upstream.outputs.should-build == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
 
     steps:
-
       # https://github.com/actions/checkout
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       # https://github.com/docker/setup-qemu-action
       - name: Set up QEMU
@@ -35,43 +86,77 @@ jobs:
           password: ${{ secrets.MANAGE_PACKAGES }}
 
       # https://github.com/docker/metadata-action
-      # - name: Docker meta
-      #   id: rcale # you'll use this in the next step
-      #   uses: docker/metadata-action@v3
-      #   with:
-          # list of Docker images to use as base name for tags
-          # images: |
-          #   ghcr.io/mmbesar/radicale
-          # Docker tags based on the following events/attributes
-          # tags: |
-          #   type=schedule
-          #   type=ref,event=branch
-          #   type=ref,event=pr
-          #   type=semver,pattern={{version}}
-          #   type=semver,pattern={{major}}.{{minor}}
-          #   type=semver,pattern={{major}}
-          #   type=sha
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/mmbesar/radicale
+          tags: |
+            type=raw,value=latest
+            type=schedule,pattern={{date 'YYYY-MM-DD'}}
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
 
       # https://github.com/docker/build-push-action
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: true
-          tags: ghcr.io/mmbesar/radicale:latest
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64,linux/arm64
-          # push: ${{ github.event_name != 'pull_request' }}
-          # tags: ${{ steps.rcale.outputs.tags }}
-          # labels: ${{ steps.rcale.outputs.labels }}
-  keepalive-job:
-    name: Keepalive Workflow
-    if: ${{ always() }}
-    needs: build_and_publish
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Update last built SHA
+        if: needs.check-upstream.outputs.upstream-sha != ''
+        run: |
+          echo "${{ needs.check-upstream.outputs.upstream-sha }}" > .last-built-sha
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .last-built-sha
+          git commit -m "Update last built SHA to ${{ needs.check-upstream.outputs.upstream-sha }}" || exit 0
+          git push
+
+  keep-alive:
+    name: Keep Repository Active
+    if: always()
+    needs: [check-upstream, build_and_publish]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: gautamkrishnar/keepalive-workflow@v2
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          use_api: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Keep repository active
+        run: |
+          # Only run keepalive on scheduled builds, not on push or manual trigger
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "Keeping repository active..."
+            
+            # Get current date
+            CURRENT_DATE=$(date '+%Y-%m-%d %H:%M:%S UTC')
+            
+            # Create or update keepalive file
+            echo "Last activity: $CURRENT_DATE" > .github/keepalive
+            echo "Triggered by: ${{ github.event_name }}" >> .github/keepalive
+            echo "Upstream check result: ${{ needs.check-upstream.outputs.should-build }}" >> .github/keepalive
+            
+            # Commit if there are changes
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add .github/keepalive
+            
+            if git diff --staged --quiet; then
+              echo "No changes to commit"
+            else
+              git commit -m "chore: keep repository active - $CURRENT_DATE"
+              git push
+            fi
+          else
+            echo "Skipping keepalive for ${{ github.event_name }} event"
+          fi
