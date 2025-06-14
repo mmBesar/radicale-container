@@ -113,8 +113,8 @@ jobs:
         if: needs.check-upstream.outputs.upstream-sha != ''
         run: |
           echo "${{ needs.check-upstream.outputs.upstream-sha }}" > .last-built-sha
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+          git config --local user.email "${{ github.actor }}@users.noreply.github.com"
+          git config --local user.name "${{ github.actor }}"
           git add .last-built-sha
           git commit -m "Update last built SHA to ${{ needs.check-upstream.outputs.upstream-sha }}" || exit 0
           git push
@@ -147,8 +147,8 @@ jobs:
             echo "Upstream check result: ${{ needs.check-upstream.outputs.should-build }}" >> .github/keepalive
             
             # Commit if there are changes
-            git config --local user.email "action@github.com"
-            git config --local user.name "GitHub Action"
+            git config --local user.email "${{ github.actor }}@users.noreply.github.com"
+            git config --local user.name "${{ github.actor }}"
             git add .github/keepalive
             
             if git diff --staged --quiet; then
