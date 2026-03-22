@@ -50,12 +50,8 @@ jobs:
           git fetch origin --tags --force
           REMOTE_TAGS=$(git ls-remote --tags origin | awk '{print $2}' | sed 's#refs/tags/##' | grep -v '\^{}')
 
-          for tag in $(git tag -l); do
-            # Only process vX.Y.Z tags — skip anything else (nightly, dev, etc.)
-            if ! echo "$tag" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-              echo "Skipping non-release tag: $tag"
-              continue
-            fi
+          # Only iterate over vX.Y.Z tags — filter before the loop
+          for tag in $(git tag -l | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$'); do
 
             # Skip tags already on origin
             if echo "$REMOTE_TAGS" | grep -qx "$tag"; then
@@ -82,9 +78,10 @@ jobs:
 
             git checkout upstream
             git branch -D temp-"$tag"
-          done
 
-          git push origin --tags --force
+            # Push this tag immediately — don't batch all at the end
+            git push origin "$tag" --force
+          done
 
       - name: Update UPSTREAM_VERSION on main if new tag found
         run: |
