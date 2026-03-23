@@ -1,5 +1,5 @@
 # Radicale CalDAV/CardDAV Server
-# https://github.com/mmBesar/Radicale
+# https://github.com/mmBesar/radicale-container
 #
 # Copy this file to your deployment directory and create a .env file with:
 #   PUID=1000
@@ -10,9 +10,9 @@
 
 services:
   radicale:
-    image: ghcr.io/mmbesar/radicale:latest
+    image: ghcr.io/mmbesar/radicale-container:latest
     # Use 'dev' or 'master' for the bleeding edge:
-    # image: ghcr.io/mmbesar/radicale:dev
+    # image: ghcr.io/mmbesar/radicale-container:dev
     container_name: radicale
     restart: unless-stopped
 
