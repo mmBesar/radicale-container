@@ -1,0 +1,43 @@
+# Radicale CalDAV/CardDAV Server
+# https://github.com/mmBesar/Radicale
+#
+# Copy this file to your deployment directory and create a .env file with:
+#   PUID=1000
+#   PGID=1000
+#   TZ=UTC
+#   HS_NETWORK=your_network
+#   CONTAINER_DIR=/path/to/your/data
+
+services:
+  radicale:
+    image: ghcr.io/mmbesar/radicale:latest
+    # Use 'dev' or 'master' for the bleeding edge:
+    # image: ghcr.io/mmbesar/radicale:dev
+    container_name: radicale
+    restart: unless-stopped
+
+    environment:
+      UID: ${PUID:-1000}
+      GID: ${PGID:-1000}
+      TZ: ${TZ:-UTC}
+
+    volumes:
+      - ${CONTAINER_DIR}/radicale/data:/var/lib/radicale
+      - ${CONTAINER_DIR}/radicale/config:/etc/radicale
+
+    networks:
+      - ${HS_NETWORK}
+
+    # Uncomment if not using a reverse proxy
+    # ports:
+    #   - "5232:5232"
+
+    healthcheck:
+      interval: 30m   # pgrep only — zero load, safe for low-power ARM
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  ${HS_NETWORK}:
+    external: true
