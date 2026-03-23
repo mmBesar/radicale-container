@@ -6,7 +6,7 @@ FROM python:3-alpine3.23 AS builder
 # Optional extra dependencies (e.g. bcrypt, ldap)
 ARG DEPENDENCIES=bcrypt
 
-# Install build deps, create venv, install Radicale from local source
+# Install build deps
 RUN apk add --no-cache gcc libffi-dev musl-dev
 
 # Copy upstream source (checked out from the upstream branch by the workflow)
@@ -55,9 +55,9 @@ VOLUME /var/lib/radicale
 # Radicale default port
 EXPOSE 5232
 
-# Healthcheck using wget (already in alpine — no extra package needed)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost:5232 || exit 1
+# Healthcheck using pgrep — no HTTP request, no log spam, minimal resources
+HEALTHCHECK --interval=30m --timeout=10s --start-period=10s --retries=3 \
+    CMD pgrep -f radicale || exit 1
 
 USER radicale
 
