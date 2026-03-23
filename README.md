@@ -5,9 +5,9 @@
 **A self-maintained, multi-arch container image for [Radicale](https://radicale.org)**
 built automatically from source, tracked to upstream releases.
 
-[![Latest Release](https://img.shields.io/github/v/tag/mmBesar/Radicale?label=upstream&color=4a9eff&style=flat-square)](https://github.com/Kozea/Radicale/releases)
-[![Image Build](https://img.shields.io/github/actions/workflow/status/mmBesar/Radicale/image-build.yaml?label=build&style=flat-square)](https://github.com/mmBesar/Radicale/actions/workflows/image-build.yaml)
-[![Sync Upstream](https://img.shields.io/github/actions/workflow/status/mmBesar/Radicale/sync-upstream.yml?label=sync&style=flat-square)](https://github.com/mmBesar/Radicale/actions/workflows/sync-upstream.yml)
+[![Latest Release](https://img.shields.io/github/v/tag/mmbesar/radicale-container?label=upstream&color=4a9eff&style=flat-square)](https://github.com/Kozea/Radicale/releases)
+[![Image Build](https://img.shields.io/github/actions/workflow/status/mmbesar/radicale-container/image-build.yaml?label=build&style=flat-square)](https://github.com/mmbesar/radicale-container/actions/workflows/image-build.yaml)
+[![Sync Upstream](https://img.shields.io/github/actions/workflow/status/mmbesar/radicale-container/sync-upstream.yml?label=sync&style=flat-square)](https://github.com/mmbesar/radicale-container/actions/workflows/sync-upstream.yml)
 [![License](https://img.shields.io/badge/license-GPL--3.0-orange?style=flat-square)](https://github.com/Kozea/Radicale/blob/master/COPYING.md)
 [![Personal Use](https://img.shields.io/badge/use-personal-blueviolet?style=flat-square)](#-disclaimer)
 
@@ -49,13 +49,13 @@ The result is a self-sufficient image pipeline that keeps going even if the upst
 
 ```bash
 # Stable (recommended)
-docker pull ghcr.io/mmbesar/radicale:latest
+docker pull ghcr.io/mmbesar/radicale-container:latest
 
 # Specific version
-docker pull ghcr.io/mmbesar/radicale:v3.6.1
+docker pull ghcr.io/mmbesar/radicale-container:v3.6.1
 
 # Bleeding edge
-docker pull ghcr.io/mmbesar/radicale:dev
+docker pull ghcr.io/mmbesar/radicale-container:dev
 ```
 
 **Supported architectures:** `linux/amd64` · `linux/arm64`
@@ -120,7 +120,7 @@ docker run -d \
   -v /your/data:/var/lib/radicale \
   -v /your/config:/etc/radicale \
   -p 5232:5232 \
-  ghcr.io/mmbesar/radicale:latest
+  ghcr.io/mmbesar/radicale-container:latest
 ```
 
 ---
@@ -147,10 +147,10 @@ sync-upstream.yml
      stable + dev build      dev build only
               │                       │
               ▼                       ▼
-     ghcr.io/mmbesar/radicale:latest  :dev
-     ghcr.io/mmbesar/radicale:vX.Y.Z  :master
-     ghcr.io/mmbesar/radicale:vX.Y
-     ghcr.io/mmbesar/radicale:vX
+     ghcr.io/mmbesar/radicale-container:latest  :dev
+     ghcr.io/mmbesar/radicale-container:vX.Y.Z  :master
+     ghcr.io/mmbesar/radicale-container:vX.Y
+     ghcr.io/mmbesar/radicale-container:vX
 ```
 
 Builds use **native runners** — no QEMU emulation:
