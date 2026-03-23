@@ -79,29 +79,45 @@ jobs:
             git push origin "$tag" --force
           done
 
-      - name: Update UPSTREAM_VERSION on main if new tag found
+      - name: Update main if upstream changed
         run: |
-          LATEST_TAG=$(git tag -l --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)
-
-          if [ -z "$LATEST_TAG" ]; then
-            echo "No release tags found, skipping."
-            exit 0
-          fi
-
-          echo "Latest upstream tag: $LATEST_TAG"
-
           git checkout main
           git pull origin main
 
-          CURRENT=$(cat UPSTREAM_VERSION 2>/dev/null || echo "")
+          CHANGED=false
 
-          if [ "$LATEST_TAG" = "$CURRENT" ]; then
-            echo "UPSTREAM_VERSION is already $CURRENT — no update needed."
-            exit 0
+          # ---- Stable: check for new release tag ----
+          LATEST_TAG=$(git tag -l --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)
+
+          if [ -n "$LATEST_TAG" ]; then
+            CURRENT_VERSION=$(cat UPSTREAM_VERSION 2>/dev/null || echo "")
+            if [ "$LATEST_TAG" != "$CURRENT_VERSION" ]; then
+              echo "New stable version: $CURRENT_VERSION → $LATEST_TAG"
+              echo "$LATEST_TAG" > UPSTREAM_VERSION
+              git add UPSTREAM_VERSION
+              CHANGED=true
+            else
+              echo "Stable version unchanged: $CURRENT_VERSION"
+            fi
           fi
 
-          echo "New version detected: $CURRENT → $LATEST_TAG"
-          echo "$LATEST_TAG" > UPSTREAM_VERSION
-          git add UPSTREAM_VERSION
-          git commit -m "chore: update UPSTREAM_VERSION to $LATEST_TAG"
-          git push origin main
+          # ---- Dev: check if master SHA changed ----
+          MASTER_SHA=$(git rev-parse upstream/master 2>/dev/null || git ls-remote origin upstream | awk '{print $1}')
+          CURRENT_SHA=$(cat UPSTREAM_MASTER_SHA 2>/dev/null || echo "")
+
+          if [ "$MASTER_SHA" != "$CURRENT_SHA" ]; then
+            echo "Master SHA changed: $CURRENT_SHA → $MASTER_SHA"
+            echo "$MASTER_SHA" > UPSTREAM_MASTER_SHA
+            git add UPSTREAM_MASTER_SHA
+            CHANGED=true
+          else
+            echo "Master SHA unchanged: $CURRENT_SHA"
+          fi
+
+          # ---- Commit and push only if something changed ----
+          if [ "$CHANGED" = "true" ]; then
+            git commit -m "chore: sync upstream changes $(date -u '+%Y-%m-%d')"
+            git push origin main
+          else
+            echo "Nothing changed — no push needed."
+          fi
