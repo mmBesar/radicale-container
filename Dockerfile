@@ -7,7 +7,7 @@ FROM python:3-alpine3.23 AS builder
 ARG DEPENDENCIES=bcrypt
 
 # Install build deps
-RUN apk add --no-cache gcc libffi-dev musl-dev
+RUN apk add --no-cache gcc libffi-dev musl-dev cargo
 
 # Copy upstream source (checked out from the upstream branch by the workflow)
 COPY . /src
