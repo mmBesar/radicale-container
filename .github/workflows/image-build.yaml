@@ -96,7 +96,7 @@ jobs:
           - arch: arm64
             runner: ubuntu-24.04-arm
           - arch: riscv64
-            runner: ubuntu-24.04-riscv
+            runner: ubuntu-24.04
 
     steps:
       - name: Checkout main (Dockerfile)
@@ -116,6 +116,12 @@ jobs:
         run: |
           cd upstream
           echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set up QEMU (for riscv64)
+        if: matrix.arch == 'riscv64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: riscv64
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -164,7 +170,7 @@ jobs:
           - arch: arm64
             runner: ubuntu-24.04-arm
           - arch: riscv64
-            runner: ubuntu-24.04-riscv
+            runner: ubuntu-24.04
 
     steps:
       - name: Checkout main (Dockerfile)
@@ -184,6 +190,15 @@ jobs:
         run: |
           cd upstream
           echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set up QEMU (for riscv64)
+        if: matrix.arch == 'riscv64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: riscv64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
