@@ -4,10 +4,10 @@
 FROM python:3-alpine3.23 AS builder
 
 # Optional extra dependencies (e.g. bcrypt, ldap)
-ARG DEPENDENCIES=bcrypt
+ARG DEPENDENCIES=argon2
 
 # Install build deps
-RUN apk add --no-cache gcc libffi-dev musl-dev cargo
+RUN apk add --no-cache gcc libffi-dev musl-dev
 
 # Copy upstream source (checked out from the upstream branch by the workflow)
 COPY . /src
