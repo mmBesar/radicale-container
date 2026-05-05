@@ -95,6 +95,8 @@ jobs:
             runner: ubuntu-24.04
           - arch: arm64
             runner: ubuntu-24.04-arm
+          - arch: riscv64
+            runner: ubuntu-24.04
 
     steps:
       - name: Checkout main (Dockerfile)
@@ -114,6 +116,12 @@ jobs:
         run: |
           cd upstream
           echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set up QEMU (for riscv64)
+        if: matrix.arch == 'riscv64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: riscv64
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -161,6 +169,8 @@ jobs:
             runner: ubuntu-24.04
           - arch: arm64
             runner: ubuntu-24.04-arm
+          - arch: riscv64
+            runner: ubuntu-24.04
 
     steps:
       - name: Checkout main (Dockerfile)
@@ -180,6 +190,12 @@ jobs:
         run: |
           cd upstream
           echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set up QEMU (for riscv64)
+        if: matrix.arch == 'riscv64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: riscv64
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -236,22 +252,26 @@ jobs:
           docker buildx imagetools create \
             --tag ${{ env.IMAGE_NAME }}:latest \
             ${{ env.IMAGE_NAME }}:latest-amd64 \
-            ${{ env.IMAGE_NAME }}:latest-arm64
+            ${{ env.IMAGE_NAME }}:latest-arm64 \
+            ${{ env.IMAGE_NAME }}:latest-riscv64
 
           docker buildx imagetools create \
             --tag ${{ env.IMAGE_NAME }}:$VERSION \
             ${{ env.IMAGE_NAME }}:$VERSION-amd64 \
-            ${{ env.IMAGE_NAME }}:$VERSION-arm64
+            ${{ env.IMAGE_NAME }}:$VERSION-arm64 \
+            ${{ env.IMAGE_NAME }}:$VERSION-riscv64
 
           docker buildx imagetools create \
             --tag ${{ env.IMAGE_NAME }}:$MINOR \
             ${{ env.IMAGE_NAME }}:$MINOR-amd64 \
-            ${{ env.IMAGE_NAME }}:$MINOR-arm64
+            ${{ env.IMAGE_NAME }}:$MINOR-arm64 \
+            ${{ env.IMAGE_NAME }}:$MINOR-riscv64
 
           docker buildx imagetools create \
             --tag ${{ env.IMAGE_NAME }}:$MAJOR \
             ${{ env.IMAGE_NAME }}:$MAJOR-amd64 \
-            ${{ env.IMAGE_NAME }}:$MAJOR-arm64
+            ${{ env.IMAGE_NAME }}:$MAJOR-arm64 \
+            ${{ env.IMAGE_NAME }}:$MAJOR-riscv64
 
   manifest-dev:
     name: Manifest — dev
@@ -277,9 +297,11 @@ jobs:
           docker buildx imagetools create \
             --tag ${{ env.IMAGE_NAME }}:dev \
             ${{ env.IMAGE_NAME }}:dev-amd64 \
-            ${{ env.IMAGE_NAME }}:dev-arm64
+            ${{ env.IMAGE_NAME }}:dev-arm64 \
+            ${{ env.IMAGE_NAME }}:dev-riscv64
 
           docker buildx imagetools create \
             --tag ${{ env.IMAGE_NAME }}:master \
             ${{ env.IMAGE_NAME }}:master-amd64 \
-            ${{ env.IMAGE_NAME }}:master-arm64
+            ${{ env.IMAGE_NAME }}:master-arm64 \
+            ${{ env.IMAGE_NAME }}:master-riscv64
