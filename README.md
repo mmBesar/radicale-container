@@ -30,7 +30,7 @@ This repository does **not** modify Radicale in any way. It simply:
 
 - Mirrors the [upstream Kozea/Radicale](https://github.com/Kozea/Radicale) source daily into a local `upstream` branch
 - Tracks upstream release tags (`vX.Y.Z`)
-- Builds multi-arch container images (`amd64` + `arm64`) from that source automatically
+- Builds multi-arch container images (`amd64` · `arm64` · `riscv64`) from that source automatically
 - Publishes them to the GitHub Container Registry (`ghcr.io`)
 
 The result is a self-sufficient image pipeline that keeps going even if the upstream repository ever disappears.
@@ -42,8 +42,8 @@ The result is a self-sufficient image pipeline that keeps going even if the upst
 | Tag | Description |
 |---|---|
 | `latest` | Latest stable release |
-| `v3.6.1` | Specific version (pinned) |
-| `v3.6` | Latest patch of minor version |
+| `v3.7.2` | Specific version (pinned) |
+| `v3.7` | Latest patch of minor version |
 | `v3` | Latest of major version |
 | `dev` / `master` | Upstream master branch (bleeding edge) |
 
@@ -52,13 +52,13 @@ The result is a self-sufficient image pipeline that keeps going even if the upst
 docker pull ghcr.io/mmbesar/radicale-container:latest
 
 # Specific version
-docker pull ghcr.io/mmbesar/radicale-container:v3.6.1
+docker pull ghcr.io/mmbesar/radicale-container:v3.7.2
 
 # Bleeding edge
 docker pull ghcr.io/mmbesar/radicale-container:dev
 ```
 
-**Supported architectures:** `linux/amd64` · `linux/arm64`
+**Supported architectures:** `linux/amd64` · `linux/arm64` · `linux/riscv64`
 
 ---
 
@@ -72,7 +72,7 @@ docker pull ghcr.io/mmbesar/radicale-container:dev
 ```env
 PUID=1000
 PGID=1000
-TZ=America/New_York
+TZ=Africa/Cairo
 HS_NETWORK=your_network
 CONTAINER_DIR=/path/to/your/data
 ```
@@ -89,7 +89,7 @@ mkdir -p /path/to/your/data/radicale/{data,config}
 [auth]
 type = htpasswd
 htpasswd_filename = /etc/radicale/users
-htpasswd_encryption = bcrypt
+htpasswd_encryption = argon2
 
 [storage]
 filesystem_folder = /var/lib/radicale/collections
@@ -98,11 +98,13 @@ filesystem_folder = /var/lib/radicale/collections
 level = warning
 ```
 
-5. Create your users file:
+5. Create your users file using the container itself:
 
 ```bash
-# Install htpasswd (apache2-utils on Debian/Ubuntu)
-htpasswd -B -c /path/to/your/data/radicale/config/users yourusername
+# Hash a password using the running container
+docker exec radicale /app/bin/python -c \
+  "import argon2; print('yourusername:' + argon2.PasswordHasher().hash('yourpassword'))" \
+  >> /path/to/your/data/radicale/config/users
 ```
 
 6. Start the container:
@@ -121,6 +123,43 @@ docker run -d \
   -v /your/config:/etc/radicale \
   -p 5232:5232 \
   ghcr.io/mmbesar/radicale-container:latest
+```
+
+---
+
+## 🔐 Migrating from bcrypt to argon2
+
+As of this image, `bcrypt` has been replaced with `argon2` as the password hashing method.
+This is due to a breaking API change in `bcrypt` 5.x that renders `passlib` (used internally by Radicale) non-functional — the server will crash on startup even though the `bcrypt` package is present.
+
+`argon2` is the modern recommended algorithm and works reliably across all supported architectures including `riscv64`.
+
+**Migration steps — clients will feel nothing, only the stored hashes change:**
+
+1. Update your Radicale config:
+
+```ini
+[auth]
+htpasswd_encryption = argon2
+```
+
+2. Rehash each user using the container:
+
+```bash
+docker exec radicale /app/bin/python -c \
+  "import argon2; print(argon2.PasswordHasher().hash('yourpassword'))"
+```
+
+3. Replace each line in your `users` file with the new hash:
+
+```
+username:$argon2id$v=19$m=65536,t=3,p=4$...
+```
+
+4. Restart the container:
+
+```bash
+docker restart radicale
 ```
 
 ---
@@ -153,9 +192,10 @@ sync-upstream.yml
      ghcr.io/mmbesar/radicale-container:vX
 ```
 
-Builds use **native runners** — no QEMU emulation:
+Builds use **native runners** where available, QEMU for `riscv64`:
 - `amd64` → `ubuntu-24.04`
 - `arm64` → `ubuntu-24.04-arm`
+- `riscv64` → `ubuntu-24.04` + QEMU
 
 ---
 
@@ -165,7 +205,7 @@ Builds use **native runners** — no QEMU emulation:
 .
 ├── Dockerfile                  # Multi-stage build from upstream source
 ├── compose.yaml                # Docker Compose deployment file
-├── UPSTREAM_VERSION            # Latest tracked stable tag (e.g. v3.6.1)
+├── UPSTREAM_VERSION            # Latest tracked stable tag (e.g. v3.7.2)
 ├── UPSTREAM_MASTER_SHA         # Latest tracked master SHA
 └── .github/
     └── workflows/
