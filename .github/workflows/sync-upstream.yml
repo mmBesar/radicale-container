@@ -1,0 +1,123 @@
+name: Sync Upstream Source
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily at midnight UTC
+  workflow_dispatch:
+
+jobs:
+  sync-upstream:
+    name: Sync Kozea/Radicale to upstream branch
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "mmBesar"
+          git config user.email "mmBesar@users.noreply.github.com"
+
+      - name: Add upstream remote and fetch
+        run: |
+          git remote add upstream https://github.com/Kozea/Radicale.git
+          git fetch upstream "+refs/heads/master:refs/remotes/upstream/master" --tags --force
+
+      - name: Preserve local workflows
+        run: |
+          mkdir -p /tmp/my-workflows
+          cp -r .github/workflows/* /tmp/my-workflows/
+
+      - name: Sync upstream branch
+        run: |
+          git checkout -B upstream upstream/master
+          rm -rf .github/workflows
+          mkdir -p .github/workflows
+          cp -r /tmp/my-workflows/* .github/workflows/
+          git add .
+          git commit -m "chore: sync upstream Kozea/Radicale master $(date -u '+%Y-%m-%d')" || echo "Nothing to commit"
+          git push origin upstream --force
+
+      - name: Rewrite only new tags
+        run: |
+          git fetch origin --tags --force
+          REMOTE_TAGS=$(git ls-remote --tags origin | awk '{print $2}' | sed 's#refs/tags/##' | grep -v '\^{}' || true)
+
+          for tag in $(git tag -l | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true); do
+
+            if echo "$REMOTE_TAGS" | grep -qx "$tag"; then
+              echo "Tag $tag already exists on origin, skipping"
+              continue
+            fi
+
+            echo ">>> Processing new tag: $tag"
+
+            orig_date=$(git show -s --format=%cI "$tag")
+            echo "Using commit date: $orig_date"
+
+            git checkout -B temp-"$tag" "$tag"
+
+            rm -rf .github/workflows
+            mkdir -p .github/workflows
+            cp -r /tmp/my-workflows/* .github/workflows/
+            git add .github/workflows
+            git commit -m "chore: inject local workflows into $tag" \
+              --date="$orig_date" || true
+
+            GIT_COMMITTER_DATE="$orig_date" GIT_TAGGER_DATE="$orig_date" \
+              git tag -a "$tag" -m "Radicale $tag" --force
+
+            git checkout upstream
+            git branch -D temp-"$tag"
+
+            git push origin "$tag" --force
+          done
+
+      - name: Update main if upstream changed
+        run: |
+          git checkout main
+          git pull origin main
+
+          CHANGED=false
+
+          # ---- Stable: check for new release tag ----
+          LATEST_TAG=$(git tag -l --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)
+
+          if [ -n "$LATEST_TAG" ]; then
+            CURRENT_VERSION=$(cat UPSTREAM_VERSION 2>/dev/null || echo "")
+            if [ "$LATEST_TAG" != "$CURRENT_VERSION" ]; then
+              echo "New stable version: $CURRENT_VERSION → $LATEST_TAG"
+              echo "$LATEST_TAG" > UPSTREAM_VERSION
+              git add UPSTREAM_VERSION
+              CHANGED=true
+            else
+              echo "Stable version unchanged: $CURRENT_VERSION"
+            fi
+          fi
+
+          # ---- Dev: check if master SHA changed ----
+          MASTER_SHA=$(git rev-parse upstream/master 2>/dev/null || git ls-remote origin upstream | awk '{print $1}')
+          CURRENT_SHA=$(cat UPSTREAM_MASTER_SHA 2>/dev/null || echo "")
+
+          if [ "$MASTER_SHA" != "$CURRENT_SHA" ]; then
+            echo "Master SHA changed: $CURRENT_SHA → $MASTER_SHA"
+            echo "$MASTER_SHA" > UPSTREAM_MASTER_SHA
+            git add UPSTREAM_MASTER_SHA
+            CHANGED=true
+          else
+            echo "Master SHA unchanged: $CURRENT_SHA"
+          fi
+
+          # ---- Commit and push only if something changed ----
+          if [ "$CHANGED" = "true" ]; then
+            git commit -m "chore: sync upstream changes $(date -u '+%Y-%m-%d')"
+            git push origin main
+          else
+            echo "Nothing changed — no push needed."
+          fi
